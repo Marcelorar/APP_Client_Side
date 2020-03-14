@@ -1,11 +1,9 @@
 package com.appclientside;
 
-import androidx.annotation.RequiresApi;
-import androidx.core.app.ActivityCompat;
-import androidx.fragment.app.FragmentActivity;
-
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Point;
 import android.location.Location;
@@ -18,10 +16,14 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
+import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.FragmentActivity;
 
 import com.appclientside.com.utils.MapWorkers;
-import com.appclientside.com.utils.Posicion;
-import com.appclientside.com.utils.Worker;
 import com.appclientside.com.utils.WorkerLocation;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -31,6 +33,8 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -40,6 +44,7 @@ import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, LocationListener {
 
@@ -58,12 +63,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private List<WorkerLocation> abatibleWorkers;
     private Handler handler;
     private int delay; //milliseconds
+    ValueEventListener workersLocationListener = new ValueEventListener() {
+        @Override
+        public void onDataChange(DataSnapshot dataSnapshot) {
+            // Get Post object and use the values to update the UI
+            WorkerLocation actual = dataSnapshot.getValue(WorkerLocation.class);
+            // ...
+        }
 
+        @Override
+        public void onCancelled(@NonNull DatabaseError databaseError) {
+            // Getting Post failed, log a message
+            //Log.w(TAG, "loadLocation:onCancelled", databaseError.toException());
+            // ...
+        }
+    };
+    private boolean inicial;
     ////////// Test quemado
-    //private Worker w ;
-    //private WorkerLocation wl;
-    //private MarkerOptions mPosition;
+    // private Worker w ;
+    //  private WorkerLocation wl;
+    // private MarkerOptions mPosition;
     ////-////
+    private int currentWorkers;
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
@@ -73,14 +94,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                     Manifest.permission.ACCESS_FINE_LOCATION) && ActivityCompat.shouldShowRequestPermissionRationale(this,
                     Manifest.permission.ACCESS_COARSE_LOCATION)) {
-
+                Toast.makeText(MapsActivity.this, "Permisos Necesarios :(!", Toast.LENGTH_LONG).show();
             } else {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},
@@ -91,8 +114,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
 
         ////////// Test quemado
-       //w = new Worker("88@ieee.com".replace("@","+").replace(".","-"),"Hector","Huerta");
-        //wl = new WorkerLocation(new Posicion(-34, 151),w,true);
+        //  w = new Worker("gg@ieee.com".replace("@","+").replace(".","-"),"Carla","Huerta");
+        // wl = new WorkerLocation(new Posicion(-0, 200),w,false);
         ////-////
 
         //firebase
@@ -101,60 +124,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         myRef.addValueEventListener(workersLocationListener);
         resAbatibleWorkers = new ArrayList<>();
         abatibleWorkers = new ArrayList<>();
+        workersInMap = new ArrayList<>();
        // myRef.child(wl.getWorkUser().getUsername()).setValue(wl);
 
 
-         handler = new Handler();
+        handler = new Handler();
         delay = 1000; //milliseconds
         handler.postDelayed(new Runnable(){
             public void run(){
                 updateCurrentWorkersLocation();
-                if(!abatibleWorkers.isEmpty())
-                for(MapWorkers wk:workersInMap) {
-                    animateMarker(wk.getMarker(), new LatLng(wk.getWorker().getPosicion().getLatitude(),
-                            wk.getWorker().getPosicion().getLongitude()), false);
-                }
+                //Control de markers, no repetirlos
+                if (!abatibleWorkers.isEmpty()) {
+                    if (inicial) {
+                        mMap.clear();
+                        workersInMap = iniWorkersPosition();
+                        inicial = false;
+                    }
+                    if (currentWorkers != abatibleWorkers.size()) {
+                        inicial = true;
+                    }
+
+                    for (MapWorkers wk : workersInMap) {
+                        if (!wk.getWorker().isVisible()) wk.getMarker().remove();
+                        animateMarker(wk.getMarker(), new LatLng(wk.getWorker().getPosicion().getLatitude(),
+                                wk.getWorker().getPosicion().getLongitude()), false);
+                    }
+                } else
+                    inicial = true;
                 handler.postDelayed(this, delay);
             }
         }, delay);
         initialLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-    }
 
+    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode,
-                                           String[] permissions, int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        //2 tipos de ubicaciones permitidas
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
-                    posibleUbicar= true;
-                } else {
-                    posibleUbicar = false;
-                }
-                return;
-            }
-        }
+                                           @NonNull String[] permissions, @NonNull int[] grantResults) {
+        // If request is cancelled, the result arrays are empty.
+        posibleUbicar = ((requestCode == PERMISSIONS) && (grantResults.length > 0)
+                //2 tipos de ubicaciones permitidas
+                && (grantResults[0] == PackageManager.PERMISSION_GRANTED) && (grantResults[1] == PackageManager.PERMISSION_GRANTED));
     }
-
-    ValueEventListener workersLocationListener = new ValueEventListener() {
-        @Override
-        public void onDataChange(DataSnapshot dataSnapshot) {
-            // Get Post object and use the values to update the UI
-            WorkerLocation actual = dataSnapshot.getValue(WorkerLocation.class);
-            // ...
-        }
-
-        @Override
-        public void onCancelled(DatabaseError databaseError) {
-            // Getting Post failed, log a message
-            //Log.w(TAG, "loadLocation:onCancelled", databaseError.toException());
-            // ...
-        }
-    };
-
 
     /**
      * Manipulates the map once available.
@@ -171,6 +182,42 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
         mMap.moveCamera(CameraUpdateFactory.newLatLng( new LatLng(initialLocation.getLatitude(),initialLocation.getLongitude())));
+        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(Marker marker) {
+                AlertDialog.Builder builder;
+                builder = new AlertDialog.Builder(MapsActivity.this);
+                builder.setTitle("Contratar");
+                builder.setMessage("Me escoges a mi?");
+                final Marker aux = marker;
+                builder.setPositiveButton("Sí", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        for (MapWorkers wm : workersInMap) {
+                            Log.i("Barrido:", wm.getWorker().getWorkUser().getNombre() + ">" + wm.getMarker().getId() + "<>" + aux.getId());
+                            if (wm.getMarker().getId().equals(aux.getId())) {
+                                actualizarVisibilidadWorker(wm.getWorker());
+                                break;
+                            }
+                        }
+                        dialog.dismiss();
+                    }
+                });
+
+                builder.setNegativeButton("NO", new DialogInterface.OnClickListener() {
+
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+
+                        dialog.dismiss();
+                    }
+                });
+
+                AlertDialog alert = builder.create();
+                alert.show();
+                return false;
+            }
+        });
+
     }
 
     public void animateMarker(final Marker marker, final LatLng toPosition, final boolean hideMarker) {
@@ -217,10 +264,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public List<MapWorkers> iniWorkersPosition(){
         List<MapWorkers> workersInMap = new ArrayList<>();
-        getAbatibleWorkers();
-        if(!abatibleWorkers.isEmpty())
+        currentWorkers = abatibleWorkers.size();
         for (WorkerLocation itr :abatibleWorkers) {
-            workersInMap.add(new MapWorkers(mMap.addMarker(new MarkerOptions().position(new LatLng(itr.getPosicion().getLatitude(), itr.getPosicion().getLongitude())).title(itr.getWorkUser().getNombre()))
+            workersInMap.add(new MapWorkers(mMap.addMarker(new MarkerOptions().position(new LatLng(itr.getPosicion().getLatitude(), itr.getPosicion().getLongitude())).title(itr.getWorkUser().getNombre() + " " + itr.getWorkUser().getApellido()))
                     , itr));
 
         }
@@ -232,39 +278,46 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         getAbatibleWorkers();
         List<WorkerLocation> wlcc;
         if(!abatibleWorkers.isEmpty()) {
-            workersInMap = iniWorkersPosition();
             wlcc = abatibleWorkers;
             for (MapWorkers mw : workersInMap)
                 for (WorkerLocation wl : wlcc) {
                     if (mw.getWorker().getWorkUser().getUsername().equals(wl.getWorkUser().getUsername()))
                         mw.setWorker(wl);
                 }
+        } else {
+            getAbatibleWorkers();
         }
     }
 
     private void  saver(){
-      abatibleWorkers = new ArrayList<>(resAbatibleWorkers);
+        /*for(WorkerLocation wl: resAbatibleWorkers)
+            if(wl.isVisible())
+                abatibleWorkers.add(wl);*/
+        abatibleWorkers = resAbatibleWorkers;
     }
 
     private void getAbatibleWorkers() {
         Query query = myRef;
         query.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()) {
                     resAbatibleWorkers.clear();
                     for (DataSnapshot worker : dataSnapshot.getChildren()) {
-                        resAbatibleWorkers.add(worker.getValue(WorkerLocation.class));
+                        if (Objects.requireNonNull(worker.getValue(WorkerLocation.class)).isVisible())
+                            resAbatibleWorkers.add(worker.getValue(WorkerLocation.class));
                     }
                     saver();
                 }
             }
 
             @Override
-            public void onCancelled(DatabaseError databaseError) {
+            public void onCancelled(@NonNull DatabaseError databaseError) {
 
             }
         });
+
+
     }
 
     @Override
@@ -281,4 +334,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onStatusChanged(String provider, int status, Bundle extras) {
         Log.d("Latitude","status");
     }
+
+
+    public void actualizarVisibilidadWorker(WorkerLocation wLocation) {
+        myRef.child(wLocation.getWorkUser().getUsername()).child("visible").setValue(false)
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                        Log.i("Estado:", "-----------------------------------------------");
+                        Log.i("Estado:", "Contratado");
+                        Toast.makeText(MapsActivity.this, "Contratado!", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.i("Estado:", "-----------------------------------------------");
+                        Log.i("Estado:", "Falla");
+                        Toast.makeText(MapsActivity.this, "Intentalo más tarde :(!", Toast.LENGTH_LONG).show();
+                    }
+                });
+
+    }
+
 }
