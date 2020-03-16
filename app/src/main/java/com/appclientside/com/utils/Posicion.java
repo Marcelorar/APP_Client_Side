@@ -3,30 +3,30 @@ package com.appclientside.com.utils;
 import java.util.Objects;
 
 public class Posicion {
-    private float latitude;
-    private float longitude;
+    private double latitude;
+    private double longitude;
 
     public Posicion() {
     }
 
-    public Posicion(float latitude, float longitude) {
+    public Posicion(double latitude, double longitude) {
         this.latitude = latitude;
         this.longitude = longitude;
     }
 
-    public float getLatitude() {
+    public double getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(float latitude) {
+    public void setLatitude(double latitude) {
         this.latitude = latitude;
     }
 
-    public float getLongitude() {
+    public double getLongitude() {
         return longitude;
     }
 
-    public void setLongitude(float longitude) {
+    public void setLongitude(double longitude) {
         this.longitude = longitude;
     }
 
@@ -35,8 +35,8 @@ public class Posicion {
         if (this == o) return true;
         if (!(o instanceof Posicion)) return false;
         Posicion posicion = (Posicion) o;
-        return Float.compare(posicion.latitude, latitude) == 0 &&
-                Float.compare(posicion.longitude, longitude) == 0;
+        return Double.compare(posicion.latitude, latitude) == 0 &&
+                Double.compare(posicion.longitude, longitude) == 0;
     }
 
     @Override

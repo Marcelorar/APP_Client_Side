@@ -5,7 +5,10 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Point;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -18,18 +21,24 @@ import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 import android.widget.Toast;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import com.appclientside.com.utils.MapWorkers;
+import com.appclientside.com.utils.Pedido;
+import com.appclientside.com.utils.Usuario;
 import com.appclientside.com.utils.WorkerLocation;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -41,16 +50,20 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, LocationListener {
 
     private GoogleMap mMap;
     protected LocationManager locationManager;
-    protected LocationListener locationListener;
     private static final int PERMISSIONS = 0;
     private boolean posibleUbicar;
     private LatLng currentLocation;
@@ -59,25 +72,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private FirebaseDatabase database;
     private DatabaseReference myRef;
+    private FirebaseFirestore db;
     private List<WorkerLocation> resAbatibleWorkers;
     private List<WorkerLocation> abatibleWorkers;
     private Handler handler;
     private int delay; //milliseconds
-    ValueEventListener workersLocationListener = new ValueEventListener() {
-        @Override
-        public void onDataChange(DataSnapshot dataSnapshot) {
-            // Get Post object and use the values to update the UI
-            WorkerLocation actual = dataSnapshot.getValue(WorkerLocation.class);
-            // ...
-        }
 
-        @Override
-        public void onCancelled(@NonNull DatabaseError databaseError) {
-            // Getting Post failed, log a message
-            //Log.w(TAG, "loadLocation:onCancelled", databaseError.toException());
-            // ...
-        }
-    };
     private boolean inicial;
     ////////// Test quemado
     // private Worker w ;
@@ -121,7 +121,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //firebase
         database = FirebaseDatabase.getInstance();
         myRef = database.getReference("workers");
-        myRef.addValueEventListener(workersLocationListener);
+        db = FirebaseFirestore.getInstance();
         resAbatibleWorkers = new ArrayList<>();
         abatibleWorkers = new ArrayList<>();
         workersInMap = new ArrayList<>();
@@ -144,11 +144,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         inicial = true;
                     }
 
+
                     for (MapWorkers wk : workersInMap) {
-                        if (!wk.getWorker().isVisible()) wk.getMarker().remove();
-                        animateMarker(wk.getMarker(), new LatLng(wk.getWorker().getPosicion().getLatitude(),
-                                wk.getWorker().getPosicion().getLongitude()), false);
+
+                        if (!wk.getMarker().getPosition().equals(new LatLng(wk.getWorker().getPosicion().getLatitude(),
+                                wk.getWorker().getPosicion().getLongitude()))) {
+
+                            animateMarker(wk.getMarker(), new LatLng(wk.getWorker().getPosicion().getLatitude(),
+                                    wk.getWorker().getPosicion().getLongitude()), false);
+                        }
                     }
+
                 } else
                     inicial = true;
                 handler.postDelayed(this, delay);
@@ -181,7 +187,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        mMap.moveCamera(CameraUpdateFactory.newLatLng( new LatLng(initialLocation.getLatitude(),initialLocation.getLongitude())));
+        mMap.setMinZoomPreference(10.0f);
+
+       /* CameraPosition cameraPosition = new CameraPosition.Builder()
+                .target(new LatLng(initialLocation.getLatitude(),initialLocation.getLongitude()))      // Sets the center of the map to Mountain View
+                .zoom(20)                   // Sets the zoom
+                .bearing(90)                // Sets the orientation of the camera to east
+                .tilt(45)                   // Sets the tilt of the camera to 30 degrees
+                .build();                   // Creates a CameraPosition from the builder
+
+        */
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(initialLocation.getLatitude(), initialLocation.getLongitude()), 19.f));
+
+        //CONTRATAR
         mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(Marker marker) {
@@ -196,6 +214,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             Log.i("Barrido:", wm.getWorker().getWorkUser().getNombre() + ">" + wm.getMarker().getId() + "<>" + aux.getId());
                             if (wm.getMarker().getId().equals(aux.getId())) {
                                 actualizarVisibilidadWorker(wm.getWorker());
+                                registrarContratacion(wm.getWorker());
                                 break;
                             }
                         }
@@ -218,6 +237,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
+    }
+
+    private void registrarContratacion(WorkerLocation w) {
+        String pattern = "EEEEE MMMMM yyyy HH:mm:ss.SSSZ";
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern, new Locale("es", "EC"));
+        String date = simpleDateFormat.format(new Date());
+        Pedido pAux = new Pedido(w, new Usuario("Prueba", "p+123-com", "0999756445"), date);
+        db.collection("contratos")
+                .add(pAux)
+                .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
+                    @Override
+                    public void onSuccess(DocumentReference documentReference) {
+                        Log.d("Guardado", "DocumentSnapshot written with ID: " + documentReference.getId());
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.w("Guardado", "Error adding document", e);
+                    }
+                });
     }
 
     public void animateMarker(final Marker marker, final LatLng toPosition, final boolean hideMarker) {
@@ -266,7 +306,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         List<MapWorkers> workersInMap = new ArrayList<>();
         currentWorkers = abatibleWorkers.size();
         for (WorkerLocation itr :abatibleWorkers) {
-            workersInMap.add(new MapWorkers(mMap.addMarker(new MarkerOptions().position(new LatLng(itr.getPosicion().getLatitude(), itr.getPosicion().getLongitude())).title(itr.getWorkUser().getNombre() + " " + itr.getWorkUser().getApellido()))
+            workersInMap.add(
+                    new MapWorkers(
+                            mMap.addMarker(
+                                    new MarkerOptions()
+                                            .position(new LatLng(itr.getPosicion().getLatitude(), itr.getPosicion().getLongitude()))
+                                            .title(itr.getWorkUser().getNombre() + " " + itr.getWorkUser().getApellido())
+                                            .icon(bitmapDescriptorFromVector(this, R.drawable.ic_obrero))
+                            )
                     , itr));
 
         }
@@ -274,9 +321,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
+    private BitmapDescriptor bitmapDescriptorFromVector(Context context, @DrawableRes int vectorDrawableResourceId) {
+        Drawable background = ContextCompat.getDrawable(context, vectorDrawableResourceId);
+        Objects.requireNonNull(background).setBounds(0, 0, background.getIntrinsicWidth(), background.getIntrinsicHeight());
+        Drawable vectorDrawable = ContextCompat.getDrawable(context, vectorDrawableResourceId);
+        Objects.requireNonNull(vectorDrawable).setBounds(40, 20, vectorDrawable.getIntrinsicWidth() + 40, vectorDrawable.getIntrinsicHeight() + 20);
+        Bitmap bitmap = Bitmap.createBitmap(background.getIntrinsicWidth(), background.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        background.draw(canvas);
+        vectorDrawable.draw(canvas);
+        return BitmapDescriptorFactory.fromBitmap(bitmap);
+    }
+
     private void updateCurrentWorkersLocation(){
         getAbatibleWorkers();
         List<WorkerLocation> wlcc;
+        //  Log.i("Mesa:", abatibleWorkers.size() + "");
+        //  Log.i("Mesa2:", workersInMap.size() + "");
         if(!abatibleWorkers.isEmpty()) {
             wlcc = abatibleWorkers;
             for (MapWorkers mw : workersInMap)
@@ -285,7 +346,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         mw.setWorker(wl);
                 }
         } else {
-            getAbatibleWorkers();
+            //Marker que no se va correccion
+            if (!workersInMap.isEmpty()) {
+                workersInMap.clear();
+                mMap.clear();
+            }
         }
     }
 
@@ -337,20 +402,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
     public void actualizarVisibilidadWorker(WorkerLocation wLocation) {
+        wLocation.setVisible(false);
         myRef.child(wLocation.getWorkUser().getUsername()).child("visible").setValue(false)
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void aVoid) {
-                        Log.i("Estado:", "-----------------------------------------------");
-                        Log.i("Estado:", "Contratado");
+                        //Log.i("Estado:", "-----------------------------------------------");
+                        // Log.i("Estado:", "Contratado");
                         Toast.makeText(MapsActivity.this, "Contratado!", Toast.LENGTH_LONG).show();
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
                     @Override
                     public void onFailure(@NonNull Exception e) {
-                        Log.i("Estado:", "-----------------------------------------------");
-                        Log.i("Estado:", "Falla");
+                        // Log.i("Estado:", "-----------------------------------------------");
+                        //  Log.i("Estado:", "Falla");
                         Toast.makeText(MapsActivity.this, "Intentalo más tarde :(!", Toast.LENGTH_LONG).show();
                     }
                 });
