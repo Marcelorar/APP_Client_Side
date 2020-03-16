@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.View;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 import android.widget.Toast;
@@ -44,6 +45,7 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -79,6 +81,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private int delay; //milliseconds
 
     private boolean inicial;
+    private boolean mapaListo;
     ////////// Test quemado
     // private Worker w ;
     //  private WorkerLocation wl;
@@ -127,7 +130,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         workersInMap = new ArrayList<>();
        // myRef.child(wl.getWorkUser().getUsername()).setValue(wl);
 
-
+        mapaListo = false;
         handler = new Handler();
         delay = 1000; //milliseconds
         handler.postDelayed(new Runnable(){
@@ -135,7 +138,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 updateCurrentWorkersLocation();
                 //Control de markers, no repetirlos
                 if (!abatibleWorkers.isEmpty()) {
-                    if (inicial) {
+                    if (inicial && mapaListo) {
                         mMap.clear();
                         workersInMap = iniWorkersPosition();
                         inicial = false;
@@ -162,6 +165,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }, delay);
         initialLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
 
+
+        //FLoating button de centrado
+
+        FloatingActionButton fab = findViewById(R.id.centrador);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(initialLocation.getLatitude(), initialLocation.getLongitude()), 19.f));
+            }
+        });
+
+
+
     }
 
     @Override
@@ -187,6 +203,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mapaListo = true;
         mMap.setMinZoomPreference(10.0f);
 
        /* CameraPosition cameraPosition = new CameraPosition.Builder()
