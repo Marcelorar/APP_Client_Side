@@ -6,6 +6,19 @@ public class Worker {
     private String username;
     private String Nombre;
     private String Apellido;
+    private String foto;
+    private String especializacion;
+
+    public Worker() {
+    }
+
+    public Worker(String username, String nombre, String apellido, String foto, String especializacion) {
+        this.username = username;
+        Nombre = nombre;
+        Apellido = apellido;
+        this.foto = foto;
+        this.especializacion = especializacion;
+    }
 
     public String getUsername() {
         return username;
@@ -31,13 +44,20 @@ public class Worker {
         Apellido = apellido;
     }
 
-    public Worker() {
+    public String getFoto() {
+        return foto;
     }
 
-    public Worker(String username, String nombre, String apellido) {
-        this.username = username;
-        Nombre = nombre;
-        Apellido = apellido;
+    public void setFoto(String foto) {
+        this.foto = foto;
+    }
+
+    public String getEspecializacion() {
+        return especializacion;
+    }
+
+    public void setEspecializacion(String especializacion) {
+        this.especializacion = especializacion;
     }
 
     @Override
@@ -47,12 +67,14 @@ public class Worker {
         Worker worker = (Worker) o;
         return username.equals(worker.username) &&
                 Nombre.equals(worker.Nombre) &&
-                Apellido.equals(worker.Apellido);
+                Apellido.equals(worker.Apellido) &&
+                foto.equals(worker.foto) &&
+                especializacion.equals(worker.especializacion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(username, Nombre, Apellido);
+        return Objects.hash(username, Nombre, Apellido, foto, especializacion);
     }
 }
 

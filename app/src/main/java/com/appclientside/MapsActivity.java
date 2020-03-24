@@ -46,6 +46,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -88,6 +89,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     // private MarkerOptions mPosition;
     ////-////
     private int currentWorkers;
+    private FirebaseAuth mAuth;
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
@@ -111,15 +113,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},
                         PERMISSIONS);
+                posibleUbicar = true;
             }
             return;
         }
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
 
-        ////////// Test quemado
-        //  w = new Worker("gg@ieee.com".replace("@","+").replace(".","-"),"Carla","Huerta");
-        // wl = new WorkerLocation(new Posicion(-0, 200),w,false);
-        ////-////
 
         //firebase
         database = FirebaseDatabase.getInstance();
@@ -128,15 +127,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         resAbatibleWorkers = new ArrayList<>();
         abatibleWorkers = new ArrayList<>();
         workersInMap = new ArrayList<>();
-       // myRef.child(wl.getWorkUser().getUsername()).setValue(wl);
-
         mapaListo = false;
+        inicial = false;
         handler = new Handler();
         delay = 1000; //milliseconds
         handler.postDelayed(new Runnable(){
             public void run(){
                 updateCurrentWorkersLocation();
                 //Control de markers, no repetirlos
+                Log.i("Error", workersInMap.size() + "");
+                Log.i("Error2", abatibleWorkers.size() + "");
                 if (!abatibleWorkers.isEmpty()) {
                     if (inicial && mapaListo) {
                         mMap.clear();
@@ -146,8 +146,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     if (currentWorkers != abatibleWorkers.size()) {
                         inicial = true;
                     }
-
-
                     for (MapWorkers wk : workersInMap) {
 
                         if (!wk.getMarker().getPosition().equals(new LatLng(wk.getWorker().getPosicion().getLatitude(),
@@ -160,6 +158,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 } else
                     inicial = true;
+
                 handler.postDelayed(this, delay);
             }
         }, delay);
@@ -177,6 +176,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
 
 
+        mAuth = FirebaseAuth.getInstance();
 
     }
 
@@ -205,15 +205,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap = googleMap;
         mapaListo = true;
         mMap.setMinZoomPreference(10.0f);
-
-       /* CameraPosition cameraPosition = new CameraPosition.Builder()
-                .target(new LatLng(initialLocation.getLatitude(),initialLocation.getLongitude()))      // Sets the center of the map to Mountain View
-                .zoom(20)                   // Sets the zoom
-                .bearing(90)                // Sets the orientation of the camera to east
-                .tilt(45)                   // Sets the tilt of the camera to 30 degrees
-                .build();                   // Creates a CameraPosition from the builder
-
-        */
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(initialLocation.getLatitude(), initialLocation.getLongitude()), 19.f));
 
         //CONTRATAR
@@ -260,7 +251,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         String pattern = "EEEEE MMMMM yyyy HH:mm:ss.SSSZ";
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern, new Locale("es", "EC"));
         String date = simpleDateFormat.format(new Date());
-        Pedido pAux = new Pedido(w, new Usuario("Prueba", "p+123-com", "0999756445"), date);
+        Pedido pAux = new Pedido(w, new Usuario(mAuth.getUid(), mAuth.getCurrentUser().getEmail(), "00000000"), date);
         db.collection("contratos")
                 .add(pAux)
                 .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
@@ -353,8 +344,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private void updateCurrentWorkersLocation(){
         getAbatibleWorkers();
         List<WorkerLocation> wlcc;
-        //  Log.i("Mesa:", abatibleWorkers.size() + "");
-        //  Log.i("Mesa2:", workersInMap.size() + "");
         if(!abatibleWorkers.isEmpty()) {
             wlcc = abatibleWorkers;
             for (MapWorkers mw : workersInMap)
@@ -424,16 +413,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void aVoid) {
-                        //Log.i("Estado:", "-----------------------------------------------");
-                        // Log.i("Estado:", "Contratado");
+                        Log.i("Estado:", "-----------------------------------------------");
+                        Log.i("Estado:", "Contratado");
                         Toast.makeText(MapsActivity.this, "Contratado!", Toast.LENGTH_LONG).show();
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
                     @Override
                     public void onFailure(@NonNull Exception e) {
-                        // Log.i("Estado:", "-----------------------------------------------");
-                        //  Log.i("Estado:", "Falla");
+                        Log.i("Estado:", "-----------------------------------------------");
+                        Log.i("Estado:", "Falla");
                         Toast.makeText(MapsActivity.this, "Intentalo más tarde :(!", Toast.LENGTH_LONG).show();
                     }
                 });
