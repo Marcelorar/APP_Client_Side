@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -29,8 +30,10 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
+import com.appclientside.com.utils.Locker;
 import com.appclientside.com.utils.MapWorkers;
 import com.appclientside.com.utils.Pedido;
+import com.appclientside.com.utils.Posicion;
 import com.appclientside.com.utils.Usuario;
 import com.appclientside.com.utils.WorkerLocation;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -80,9 +83,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private List<WorkerLocation> abatibleWorkers;
     private Handler handler;
     private int delay; //milliseconds
+    private Usuario currentUser;
+    private Usuario resCurrentUser;
+    private Locker ordering;
+    private Locker resOrdering;
 
     private boolean inicial;
-    private boolean mapaListo;
+    private boolean locked;
     ////////// Test quemado
     // private Worker w ;
     //  private WorkerLocation wl;
@@ -120,6 +127,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
 
 
+        locked = false;
+
         //firebase
         database = FirebaseDatabase.getInstance();
         myRef = database.getReference("workers");
@@ -127,7 +136,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         resAbatibleWorkers = new ArrayList<>();
         abatibleWorkers = new ArrayList<>();
         workersInMap = new ArrayList<>();
-        mapaListo = false;
         inicial = false;
         handler = new Handler();
         delay = 1000; //milliseconds
@@ -138,7 +146,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Log.i("Error", workersInMap.size() + "");
                 Log.i("Error2", abatibleWorkers.size() + "");
                 if (!abatibleWorkers.isEmpty()) {
-                    if (inicial && mapaListo) {
+                    if (inicial && mMap != null) {
                         mMap.clear();
                         workersInMap = iniWorkersPosition();
                         inicial = false;
@@ -147,7 +155,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         inicial = true;
                     }
                     for (MapWorkers wk : workersInMap) {
-
                         if (!wk.getMarker().getPosition().equals(new LatLng(wk.getWorker().getPosicion().getLatitude(),
                                 wk.getWorker().getPosicion().getLongitude()))) {
 
@@ -160,6 +167,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     inicial = true;
 
                 handler.postDelayed(this, delay);
+
             }
         }, delay);
         initialLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
@@ -177,7 +185,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
         mAuth = FirebaseAuth.getInstance();
-
+        getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
     }
 
     @Override
@@ -203,7 +211,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        mapaListo = true;
         mMap.setMinZoomPreference(10.0f);
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(initialLocation.getLatitude(), initialLocation.getLongitude()), 19.f));
 
@@ -221,7 +228,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         for (MapWorkers wm : workersInMap) {
                             Log.i("Barrido:", wm.getWorker().getWorkUser().getNombre() + ">" + wm.getMarker().getId() + "<>" + aux.getId());
                             if (wm.getMarker().getId().equals(aux.getId())) {
-                                actualizarVisibilidadWorker(wm.getWorker());
+                                hireWorker(wm.getWorker());
                                 registrarContratacion(wm.getWorker());
                                 break;
                             }
@@ -251,7 +258,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         String pattern = "EEEEE MMMMM yyyy HH:mm:ss.SSSZ";
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern, new Locale("es", "EC"));
         String date = simpleDateFormat.format(new Date());
-        Pedido pAux = new Pedido(w, new Usuario(mAuth.getUid(), mAuth.getCurrentUser().getEmail(), "00000000"), date);
+        Pedido pAux = new Pedido(w, currentUser, date);
         db.collection("contratos")
                 .add(pAux)
                 .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
@@ -308,6 +315,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onLocationChanged(Location location) {
         currentLocation = new LatLng(location.getLatitude(),
         location.getLongitude());
+        updatePosition(location);
     }
 
     public List<MapWorkers> iniWorkersPosition(){
@@ -367,7 +375,32 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         abatibleWorkers = resAbatibleWorkers;
     }
 
+
+    public void saverUser() {
+        currentUser = resCurrentUser;
+    }
+
+    private void getCurrentClient(String userName) {
+        myRef = database.getReference("clients");
+        Query query = myRef;
+        query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()) {
+                    resCurrentUser = dataSnapshot.getChildren().iterator().next().getValue(Usuario.class);
+                    Log.i("Current", resCurrentUser.getNombre());
+                }
+                saverUser();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+            }
+        });
+    }
+
     private void getAbatibleWorkers() {
+        myRef = database.getReference("workers");
         Query query = myRef;
         query.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
@@ -407,9 +440,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-    public void actualizarVisibilidadWorker(WorkerLocation wLocation) {
+    public void hireWorker(WorkerLocation wLocation) {
         wLocation.setVisible(false);
-        myRef.child(wLocation.getWorkUser().getUsername()).child("visible").setValue(false)
+        myRef = database.getReference("locked");
+        myRef.child(currentUser.getCorreo().replace("@", "+").replace(".", "-") +
+                ";" +
+                wLocation.getWorkUser().getUsername().replace("@", "+").replace(".", "-"))
+                .setValue(new Locker(currentUser, wLocation.getWorkUser()))
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void aVoid) {
@@ -426,7 +463,53 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         Toast.makeText(MapsActivity.this, "Intentalo más tarde :(!", Toast.LENGTH_LONG).show();
                     }
                 });
-
     }
 
+    private void lockSaver() {
+        ordering = resOrdering;
+    }
+
+    private void checkLock() {
+        myRef = database.getReference("locked");
+        Query query = myRef;
+        query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                locked = false;
+                if (dataSnapshot.exists()) {
+                    for (DataSnapshot lock : dataSnapshot.getChildren()) {
+                        if (Objects.requireNonNull(lock.getValue(Locker.class)).toString().split(";")[0].equals(
+                                currentUser.getCorreo().replace("@", "+").replace(".", "-"))) {
+                            locked = true;
+                            resOrdering = lock.getValue(Locker.class);
+                            break;
+                        }
+
+                    }
+                    lockSaver();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+
+    private void updatePosition(Location location) {
+        myRef = database.getReference("clients");
+        myRef.child(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"))
+                .child("ubicacion").setValue(new Posicion(location.getLatitude(), location.getLongitude())).addOnSuccessListener(new OnSuccessListener<Void>() {
+            @Override
+            public void onSuccess(Void aVoid) {
+            }
+        });
+    }
+
+    private void moveToProcess() {
+        Intent intent = new Intent(this, OrderingProcess.class);
+        startActivity(intent);
+    }
 }

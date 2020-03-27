@@ -5,15 +5,15 @@ import java.util.Objects;
 public class Usuario {
     private String nombre;
     private String correo;
-    private String telefono;
+    private Posicion ubicacion;
 
     public Usuario() {
     }
 
-    public Usuario(String nombre, String correo, String telefono) {
+    public Usuario(String nombre, String correo, Posicion ubicacion) {
         this.nombre = nombre;
         this.correo = correo;
-        this.telefono = telefono;
+        this.ubicacion = ubicacion;
     }
 
     public String getNombre() {
@@ -32,12 +32,12 @@ public class Usuario {
         this.correo = correo;
     }
 
-    public String getTelefono() {
-        return telefono;
+    public Posicion getUbicacion() {
+        return ubicacion;
     }
 
-    public void setTelefono(String telefono) {
-        this.telefono = telefono;
+    public void setUbicacion(Posicion ubicacion) {
+        this.ubicacion = ubicacion;
     }
 
     @Override
@@ -47,13 +47,11 @@ public class Usuario {
         Usuario usuario = (Usuario) o;
         return nombre.equals(usuario.nombre) &&
                 correo.equals(usuario.correo) &&
-                telefono.equals(usuario.telefono);
+                ubicacion.equals(usuario.ubicacion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nombre, correo, telefono);
+        return Objects.hash(nombre, correo, ubicacion);
     }
-
-
 }
