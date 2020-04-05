@@ -8,6 +8,8 @@ public class Pedido {
     private String timestamp;
 
     public Pedido() {
+        worker = new WorkerLocation();
+        client = new Usuario();
     }
 
     public Pedido(WorkerLocation worker, Usuario client, String timestamp) {

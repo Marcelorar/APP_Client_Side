@@ -21,6 +21,8 @@ import android.util.Log;
 import android.view.View;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.annotation.DrawableRes;
@@ -33,6 +35,7 @@ import androidx.fragment.app.FragmentActivity;
 import com.appclientside.com.utils.MapWorkers;
 import com.appclientside.com.utils.Pedido;
 import com.appclientside.com.utils.Posicion;
+import com.appclientside.com.utils.Profesion;
 import com.appclientside.com.utils.Usuario;
 import com.appclientside.com.utils.WorkerLocation;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -87,12 +90,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private boolean inicial;
     private boolean locked;
-    ////////// Test quemado
-    // private Worker w ;
-    //  private WorkerLocation wl;
-    // private MarkerOptions mPosition;
-    ////-////
+
+    private List<Profesion> profesions;
+    private List<Profesion> fitProfesions;
+    private Spinner filtro;
+
     private int currentWorkers;
+
     private FirebaseAuth mAuth;
 
     @RequiresApi(api = Build.VERSION_CODES.M)
@@ -106,6 +110,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (mapFragment != null) {
             mapFragment.getMapAsync(this);
         }
+
+        filtro = findViewById(R.id.pFiltro);
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -135,7 +141,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         workersInMap = new ArrayList<>();
         inicial = false;
         handler = new Handler();
-        delay = 1000; //milliseconds
+        delay = 500; //milliseconds
+        initialLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+        //FLoating button de centrado
+
+        FloatingActionButton fab = findViewById(R.id.centrador);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(initialLocation.getLatitude(), initialLocation.getLongitude()), 19.f));
+            }
+        });
+
+
+        mAuth = FirebaseAuth.getInstance();
+        getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
+
+
+        profesions = new ArrayList<>();
+        fitProfesions = new ArrayList<>();
+
+        loadProfesions();
+
         handler.postDelayed(new Runnable(){
             public void run(){
                 updateCurrentWorkersLocation();
@@ -160,6 +187,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         }
                     }
 
+
+                    if (String.valueOf(filtro.getSelectedItem()).equals("Todas")) {
+                        for (MapWorkers mw : workersInMap) {
+                            mw.getMarker().setVisible(true);
+                        }
+                    } else {
+                        for (MapWorkers mwj : workersInMap) {
+                            mwj.getMarker().setVisible(true);
+                        }
+                        for (MapWorkers mw : workersInMap) {
+                            if (!mw.getWorker().getWorkUser().getEspecializacion().equals(String.valueOf(filtro.getSelectedItem())))
+                                mw.getMarker().setVisible(false);
+                        }
+                    }
+
                 } else
                     inicial = true;
 
@@ -167,28 +209,49 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             }
         }, delay);
-        initialLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-
-
-        //FLoating button de centrado
-
-        FloatingActionButton fab = findViewById(R.id.centrador);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(initialLocation.getLatitude(), initialLocation.getLongitude()), 19.f));
-            }
-        });
-
-
-        mAuth = FirebaseAuth.getInstance();
-        getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         if (checkLock()) moveToProcess();
+    }
+
+
+    private void saverProfesions() {
+        profesions = fitProfesions;
+    }
+
+    private void loadProfesions() {
+        myRef = database.getReference("profesions");
+        Query query = myRef;
+        query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                List<String> aux = new ArrayList<>();
+                if (dataSnapshot.exists()) {
+
+                    for (DataSnapshot profesion : dataSnapshot.getChildren()) {
+                        Log.i("Test", profesion.getValue(Profesion.class).toString());
+                        aux.add(profesion.getValue(Profesion.class).getNombre());
+                        fitProfesions.add(profesion.getValue(Profesion.class));
+                    }
+                    aux.add(0, "Todas");
+                    fitProfesions.add(0, new Profesion("Todas", "Green"));
+                    ArrayAdapter<String> adapter = new ArrayAdapter<String>(MapsActivity.this,
+                            android.R.layout.simple_spinner_dropdown_item, aux);
+
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    filtro.setAdapter(adapter);
+                    saverProfesions();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+            }
+        });
+
     }
 
     @Override

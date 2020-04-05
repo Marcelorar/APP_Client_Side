@@ -8,11 +8,61 @@
     android:layout_height="match_parent"
     tools:context=".MapsActivity">
 
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/clientMenu"
+        android:layout_width="401dp"
+        android:layout_height="50dp"
+        android:background="?attr/colorPrimary"
+        android:minHeight="?attr/actionBarSize"
+        android:theme="?attr/actionBarTheme"
+        map:layout_constraintBottom_toTopOf="@+id/map"
+        map:layout_constraintEnd_toEndOf="parent"
+        map:layout_constraintLeft_toLeftOf="parent"
+        map:layout_constraintRight_toRightOf="parent"
+        map:layout_constraintStart_toStartOf="parent"
+        map:layout_constraintTop_toTopOf="parent">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/linearLayout2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            map:layout_constraintBottom_toBottomOf="@+id/pFiltro"
+            map:layout_constraintTop_toBottomOf="@+id/pFiltro"
+            tools:layout_editor_absoluteX="16dp">
+
+            <TextView
+                android:id="@+id/textView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Busco"
+                map:layout_constraintBottom_toBottomOf="parent"
+                map:layout_constraintLeft_toLeftOf="parent"
+                map:layout_constraintRight_toLeftOf="@+id/pFiltro"
+                map:layout_constraintTop_toTopOf="parent" />
+
+            <Spinner
+                android:id="@+id/pFiltro"
+                android:layout_width="309dp"
+                android:layout_height="43dp"
+                android:layout_marginTop="4dp"
+                map:layout_constraintEnd_toEndOf="parent"
+                map:layout_constraintLeft_toRightOf="@id/textView"
+                map:layout_constraintStart_toStartOf="parent"
+                map:layout_constraintTop_toTopOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.appcompat.widget.Toolbar>
+
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/map"
         android:name="com.google.android.gms.maps.SupportMapFragment"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="411dp"
+        android:layout_height="669dp"
+        map:layout_constraintBottom_toBottomOf="parent"
+        map:layout_constraintEnd_toEndOf="parent"
+        map:layout_constraintStart_toStartOf="parent"
+        map:layout_constraintTop_toBottomOf="@+id/clientMenu"
         tools:context=".MapsActivity" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -26,4 +76,5 @@
         android:src="@android:drawable/ic_menu_compass"
         map:layout_constraintBottom_toBottomOf="parent"
         map:layout_constraintEnd_toEndOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

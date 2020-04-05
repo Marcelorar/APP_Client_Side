@@ -10,6 +10,8 @@ public class WorkerLocation {
     private boolean contratado;
 
     public WorkerLocation() {
+        workUser = new Worker();
+        posicion = new Posicion();
     }
 
     public WorkerLocation(Posicion posicion, Worker workUser, float calificacion, boolean visible, boolean contratado) {

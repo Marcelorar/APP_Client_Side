@@ -9,6 +9,7 @@ public class Usuario {
     private boolean contratando;
 
     public Usuario() {
+        ubicacion = new Posicion();
     }
 
     public Usuario(String nombre, String correo, Posicion ubicacion, boolean contratando) {

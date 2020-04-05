@@ -25,6 +25,7 @@ public class MapWorkers {
     }
 
     public MapWorkers() {
+        worker = new WorkerLocation();
     }
 
     public MapWorkers(Marker marker, WorkerLocation worker) {
