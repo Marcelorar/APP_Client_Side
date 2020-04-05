@@ -6,14 +6,16 @@ public class Usuario {
     private String nombre;
     private String correo;
     private Posicion ubicacion;
+    private boolean contratando;
 
     public Usuario() {
     }
 
-    public Usuario(String nombre, String correo, Posicion ubicacion) {
+    public Usuario(String nombre, String correo, Posicion ubicacion, boolean contratando) {
         this.nombre = nombre;
         this.correo = correo;
         this.ubicacion = ubicacion;
+        this.contratando = contratando;
     }
 
     public String getNombre() {
@@ -40,18 +42,27 @@ public class Usuario {
         this.ubicacion = ubicacion;
     }
 
+    public boolean isContratando() {
+        return contratando;
+    }
+
+    public void setContratando(boolean contratando) {
+        this.contratando = contratando;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Usuario)) return false;
         Usuario usuario = (Usuario) o;
-        return nombre.equals(usuario.nombre) &&
+        return contratando == usuario.contratando &&
+                nombre.equals(usuario.nombre) &&
                 correo.equals(usuario.correo) &&
                 ubicacion.equals(usuario.ubicacion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nombre, correo, ubicacion);
+        return Objects.hash(nombre, correo, ubicacion, contratando);
     }
 }

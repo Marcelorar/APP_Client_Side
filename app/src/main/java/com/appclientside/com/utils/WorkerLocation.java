@@ -7,15 +7,34 @@ public class WorkerLocation {
     private Worker workUser;
     private float calificacion;
     private boolean visible;
+    private boolean contratado;
 
-    public WorkerLocation(Posicion posicion, Worker workUser, float calificacion, boolean visible) {
+    public WorkerLocation() {
+    }
+
+    public WorkerLocation(Posicion posicion, Worker workUser, float calificacion, boolean visible, boolean contratado) {
         this.posicion = posicion;
         this.workUser = workUser;
         this.calificacion = calificacion;
         this.visible = visible;
+        this.contratado = contratado;
     }
 
-    public WorkerLocation() {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof WorkerLocation)) return false;
+        WorkerLocation that = (WorkerLocation) o;
+        return Float.compare(that.calificacion, calificacion) == 0 &&
+                visible == that.visible &&
+                contratado == that.contratado &&
+                posicion.equals(that.posicion) &&
+                workUser.equals(that.workUser);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(posicion, workUser, calificacion, visible, contratado);
     }
 
     public Posicion getPosicion() {
@@ -50,19 +69,11 @@ public class WorkerLocation {
         this.visible = visible;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof WorkerLocation)) return false;
-        WorkerLocation that = (WorkerLocation) o;
-        return Float.compare(that.calificacion, calificacion) == 0 &&
-                visible == that.visible &&
-                posicion.equals(that.posicion) &&
-                workUser.equals(that.workUser);
+    public boolean isContratado() {
+        return contratado;
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(posicion, workUser, calificacion, visible);
+    public void setContratado(boolean contratado) {
+        this.contratado = contratado;
     }
 }

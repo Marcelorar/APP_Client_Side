@@ -223,7 +223,7 @@ public class LoginClient extends AppCompatActivity implements LocationListener {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         if (task.isSuccessful()) {
-                            final Usuario aux = new Usuario("Anonimo", mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"), new Posicion(initialLocation.getLatitude(), initialLocation.getLongitude()));
+                            final Usuario aux = new Usuario("Anonimo", mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"), new Posicion(initialLocation.getLatitude(), initialLocation.getLongitude()), false);
                             AlertDialog.Builder builder = new AlertDialog.Builder(LoginClient.this);
                             builder.setTitle("Como te llamas?");
                             final EditText input = new EditText(LoginClient.this);

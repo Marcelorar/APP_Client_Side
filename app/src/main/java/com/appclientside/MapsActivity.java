@@ -30,7 +30,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import com.appclientside.com.utils.Locker;
 import com.appclientside.com.utils.MapWorkers;
 import com.appclientside.com.utils.Pedido;
 import com.appclientside.com.utils.Posicion;
@@ -85,8 +84,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private int delay; //milliseconds
     private Usuario currentUser;
     private Usuario resCurrentUser;
-    private Locker ordering;
-    private Locker resOrdering;
 
     private boolean inicial;
     private boolean locked;
@@ -186,6 +183,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mAuth = FirebaseAuth.getInstance();
         getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (checkLock()) moveToProcess();
     }
 
     @Override
@@ -442,61 +445,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void hireWorker(WorkerLocation wLocation) {
         wLocation.setVisible(false);
-        myRef = database.getReference("locked");
-        myRef.child(currentUser.getCorreo().replace("@", "+").replace(".", "-") +
-                ";" +
-                wLocation.getWorkUser().getUsername().replace("@", "+").replace(".", "-"))
-                .setValue(new Locker(currentUser, wLocation.getWorkUser()))
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void aVoid) {
-                        Log.i("Estado:", "-----------------------------------------------");
-                        Log.i("Estado:", "Contratado");
-                        Toast.makeText(MapsActivity.this, "Contratado!", Toast.LENGTH_LONG).show();
-                    }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Log.i("Estado:", "-----------------------------------------------");
-                        Log.i("Estado:", "Falla");
-                        Toast.makeText(MapsActivity.this, "Intentalo más tarde :(!", Toast.LENGTH_LONG).show();
-                    }
-                });
+        moveToProcess();
     }
 
-    private void lockSaver() {
-        ordering = resOrdering;
+
+    private boolean checkLock() {
+        return false;
     }
-
-    private void checkLock() {
-        myRef = database.getReference("locked");
-        Query query = myRef;
-        query.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                locked = false;
-                if (dataSnapshot.exists()) {
-                    for (DataSnapshot lock : dataSnapshot.getChildren()) {
-                        if (Objects.requireNonNull(lock.getValue(Locker.class)).toString().split(";")[0].equals(
-                                currentUser.getCorreo().replace("@", "+").replace(".", "-"))) {
-                            locked = true;
-                            resOrdering = lock.getValue(Locker.class);
-                            break;
-                        }
-
-                    }
-                    lockSaver();
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
-
-            }
-        });
-    }
-
 
     private void updatePosition(Location location) {
         myRef = database.getReference("clients");
