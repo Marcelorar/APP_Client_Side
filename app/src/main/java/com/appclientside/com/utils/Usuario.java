@@ -1,18 +1,19 @@
 package com.appclientside.com.utils;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class Usuario {
+public class Usuario implements Serializable {
     private String nombre;
     private String correo;
     private Posicion ubicacion;
-    private boolean contratando;
+    private String contratando;
 
     public Usuario() {
         ubicacion = new Posicion();
     }
 
-    public Usuario(String nombre, String correo, Posicion ubicacion, boolean contratando) {
+    public Usuario(String nombre, String correo, Posicion ubicacion, String contratando) {
         this.nombre = nombre;
         this.correo = correo;
         this.ubicacion = ubicacion;
@@ -43,11 +44,11 @@ public class Usuario {
         this.ubicacion = ubicacion;
     }
 
-    public boolean isContratando() {
+    public String getContratando() {
         return contratando;
     }
 
-    public void setContratando(boolean contratando) {
+    public void setContratando(String contratando) {
         this.contratando = contratando;
     }
 
@@ -56,10 +57,10 @@ public class Usuario {
         if (this == o) return true;
         if (!(o instanceof Usuario)) return false;
         Usuario usuario = (Usuario) o;
-        return contratando == usuario.contratando &&
-                nombre.equals(usuario.nombre) &&
+        return nombre.equals(usuario.nombre) &&
                 correo.equals(usuario.correo) &&
-                ubicacion.equals(usuario.ubicacion);
+                ubicacion.equals(usuario.ubicacion) &&
+                contratando.equals(usuario.contratando);
     }
 
     @Override

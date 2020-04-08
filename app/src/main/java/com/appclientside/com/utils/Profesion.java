@@ -1,8 +1,9 @@
 package com.appclientside.com.utils;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class Profesion {
+public class Profesion implements Serializable {
     private String nombre;
     private String color;
 

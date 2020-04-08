@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -37,6 +38,7 @@ import com.appclientside.MapsActivity;
 import com.appclientside.R;
 import com.appclientside.com.utils.Posicion;
 import com.appclientside.com.utils.Usuario;
+import com.appclientside.com.utils.WorkerLocation;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -44,8 +46,12 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
+import com.google.firebase.database.ValueEventListener;
 
 public class LoginClient extends AppCompatActivity implements LocationListener {
 
@@ -186,10 +192,12 @@ public class LoginClient extends AppCompatActivity implements LocationListener {
     @Override
     protected void onStart() {
         super.onStart();
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser != null) {
-            Toast.makeText(getApplicationContext(), "Benvenido de vuelta!", Toast.LENGTH_SHORT).show();
-            moveToMap();
+        if (mAuth != null) {
+            FirebaseUser currentUser = mAuth.getCurrentUser();
+            if (currentUser != null) {
+                Toast.makeText(getApplicationContext(), "Benvenido de vuelta!", Toast.LENGTH_SHORT).show();
+                moveToMap();
+            }
         }
     }
 
@@ -199,7 +207,7 @@ public class LoginClient extends AppCompatActivity implements LocationListener {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         if (task.isSuccessful()) {
-                            moveToMap();
+                            validateDataExistence("Ajustando cuenta.");
                         } else {
                             createAccount(username, password);
                             Toast.makeText(LoginClient.this, "Ahora estas Registrado!",
@@ -211,19 +219,51 @@ public class LoginClient extends AppCompatActivity implements LocationListener {
     }
 
 
+    private void validateDataExistence(final String mensaje) {
+        myRef = database.getReference("workers");
+        Query query = myRef.orderByChild("workUser/username").equalTo(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
+        query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                Log.i("Estatus", "Test");
+                if (dataSnapshot.exists()) {
+                    Log.i("Estatus", "Existe");
+                    Toast.makeText(getApplicationContext(), mensaje, Toast.LENGTH_SHORT).show();
+                    myRef = database.getReference("clients");
+                    myRef.child(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-")).setValue(new Usuario(
+                            dataSnapshot.getChildren().iterator().next().getValue(WorkerLocation.class).getWorkUser().getNombre() + " " + dataSnapshot.getChildren().iterator().next().getValue(WorkerLocation.class).getWorkUser().getApellido(), mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"), new Posicion(initialLocation.getLatitude(), initialLocation.getLongitude()), "")
+                    ).addOnSuccessListener(new OnSuccessListener<Void>() {
+                        @Override
+                        public void onSuccess(Void aVoid) {
+                            moveToMap();
+                        }
+                    });
+                } else {
+                    Log.i("Estatus", " No Existe");
+                    moveToMap();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+            }
+        });
+    }
+
+
     private void moveToMap() {
         Intent intent = new Intent(this, MapsActivity.class);
         startActivity(intent);
     }
 
-    private void createAccount(String username, String password) {
+    private void createAccount(final String username, String password) {
 
         mAuth.createUserWithEmailAndPassword(username, password)
                 .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         if (task.isSuccessful()) {
-                            final Usuario aux = new Usuario("Anonimo", mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"), new Posicion(initialLocation.getLatitude(), initialLocation.getLongitude()), false);
+                            final Usuario aux = new Usuario(username, mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"), new Posicion(initialLocation.getLatitude(), initialLocation.getLongitude()), "");
                             AlertDialog.Builder builder = new AlertDialog.Builder(LoginClient.this);
                             builder.setTitle("Como te llamas?");
                             final EditText input = new EditText(LoginClient.this);
@@ -233,6 +273,7 @@ public class LoginClient extends AppCompatActivity implements LocationListener {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
                                     aux.setNombre(input.getText().toString());
+                                    myRef = database.getReference("clients");
                                     myRef.child(aux.getCorreo()).setValue(aux).addOnSuccessListener(new OnSuccessListener<Void>() {
                                         @Override
                                         public void onSuccess(Void aVoid) {

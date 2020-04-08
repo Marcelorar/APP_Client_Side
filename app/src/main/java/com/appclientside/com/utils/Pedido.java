@@ -1,8 +1,9 @@
 package com.appclientside.com.utils;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class Pedido {
+public class Pedido implements Serializable {
     private WorkerLocation worker;
     private Usuario client;
     private String timestamp;

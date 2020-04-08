@@ -1,8 +1,9 @@
 package com.appclientside.com.utils;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class Worker {
+public class Worker implements Serializable {
     private String username;
     private String Nombre;
     private String Apellido;

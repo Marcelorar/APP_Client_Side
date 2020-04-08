@@ -1,8 +1,9 @@
 package com.appclientside.com.utils;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class Posicion {
+public class Posicion implements Serializable {
     private double latitude;
     private double longitude;
 

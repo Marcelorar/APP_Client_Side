@@ -2,9 +2,10 @@ package com.appclientside.com.utils;
 
 import com.google.android.gms.maps.model.Marker;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class MapWorkers {
+public class MapWorkers implements Serializable {
     private Marker marker;
     private WorkerLocation worker;
 

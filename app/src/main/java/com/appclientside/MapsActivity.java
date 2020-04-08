@@ -84,9 +84,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private List<WorkerLocation> resAbatibleWorkers;
     private List<WorkerLocation> abatibleWorkers;
     private Handler handler;
+    private Runnable runn;
     private int delay; //milliseconds
-    private Usuario currentUser;
+    private Usuario currentUser = new Usuario();
     private Usuario resCurrentUser;
+
+    private String codeChat;
+    private String resCodeChat;
 
     private boolean inicial;
     private boolean locked;
@@ -156,16 +160,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mAuth = FirebaseAuth.getInstance();
         getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
-
-
         profesions = new ArrayList<>();
         fitProfesions = new ArrayList<>();
 
         loadProfesions();
-
-        handler.postDelayed(new Runnable(){
-            public void run(){
+        runn = new Runnable() {
+            public void run() {
                 updateCurrentWorkersLocation();
+                getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
                 //Control de markers, no repetirlos
                 Log.i("Error", workersInMap.size() + "");
                 Log.i("Error2", abatibleWorkers.size() + "");
@@ -178,16 +180,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     if (currentWorkers != abatibleWorkers.size()) {
                         inicial = true;
                     }
-                    for (MapWorkers wk : workersInMap) {
-                        if (!wk.getMarker().getPosition().equals(new LatLng(wk.getWorker().getPosicion().getLatitude(),
-                                wk.getWorker().getPosicion().getLongitude()))) {
-
-                            animateMarker(wk.getMarker(), new LatLng(wk.getWorker().getPosicion().getLatitude(),
-                                    wk.getWorker().getPosicion().getLongitude()), false);
-                        }
-                    }
-
-
                     if (String.valueOf(filtro.getSelectedItem()).equals("Todas")) {
                         for (MapWorkers mw : workersInMap) {
                             mw.getMarker().setVisible(true);
@@ -201,20 +193,33 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 mw.getMarker().setVisible(false);
                         }
                     }
+                    for (MapWorkers wk : workersInMap) {
+                        if (!wk.getMarker().getPosition().equals(new LatLng(wk.getWorker().getPosicion().getLatitude(),
+                                wk.getWorker().getPosicion().getLongitude()))) {
+
+                            animateMarker(wk.getMarker(), new LatLng(wk.getWorker().getPosicion().getLatitude(),
+                                    wk.getWorker().getPosicion().getLongitude()), false);
+                        }
+                    }
 
                 } else
                     inicial = true;
 
+                if (currentUser.getContratando() != null && !currentUser.getContratando().isEmpty()) {
+                    moveToProcess();
+                }
                 handler.postDelayed(this, delay);
 
             }
-        }, delay);
+        };
+
+
+        handler.postDelayed(runn, delay);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        if (checkLock()) moveToProcess();
     }
 
 
@@ -263,15 +268,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 && (grantResults[0] == PackageManager.PERMISSION_GRANTED) && (grantResults[1] == PackageManager.PERMISSION_GRANTED));
     }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
 
 
     @Override
@@ -284,6 +280,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(Marker marker) {
+
+                for (MapWorkers wm : workersInMap) {
+                    if (wm.getMarker().getId().equals(marker.getId())) {
+                        if (!wm.getWorker().getContratado().isEmpty() && wm.getWorker().isVisible()) {
+                            Toast.makeText(MapsActivity.this, "Usuario negociando con otro cliente...", Toast.LENGTH_LONG).show();
+                            return false;
+                        }
+                    }
+                }
                 AlertDialog.Builder builder;
                 builder = new AlertDialog.Builder(MapsActivity.this);
                 builder.setTitle("Contratar");
@@ -294,7 +299,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         for (MapWorkers wm : workersInMap) {
                             Log.i("Barrido:", wm.getWorker().getWorkUser().getNombre() + ">" + wm.getMarker().getId() + "<>" + aux.getId());
                             if (wm.getMarker().getId().equals(aux.getId())) {
-                                hireWorker(wm.getWorker());
                                 registrarContratacion(wm.getWorker());
                                 break;
                             }
@@ -320,7 +324,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    private void registrarContratacion(WorkerLocation w) {
+    private void registrarContratacion(final WorkerLocation w) {
         String pattern = "EEEEE MMMMM yyyy HH:mm:ss.SSSZ";
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern, new Locale("es", "EC"));
         String date = simpleDateFormat.format(new Date());
@@ -331,6 +335,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     @Override
                     public void onSuccess(DocumentReference documentReference) {
                         Log.d("Guardado", "DocumentSnapshot written with ID: " + documentReference.getId());
+                        hireWorker(w, documentReference.getId());
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
@@ -435,9 +440,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void  saver(){
-        /*for(WorkerLocation wl: resAbatibleWorkers)
-            if(wl.isVisible())
-                abatibleWorkers.add(wl);*/
         abatibleWorkers = resAbatibleWorkers;
     }
 
@@ -448,7 +450,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void getCurrentClient(String userName) {
         myRef = database.getReference("clients");
-        Query query = myRef;
+        Query query = myRef.orderByChild("correo").equalTo(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
         query.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
@@ -506,15 +508,22 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-    public void hireWorker(WorkerLocation wLocation) {
-        wLocation.setVisible(false);
-        moveToProcess();
+    public void hireWorker(final WorkerLocation wLocation, final String code) {
+        myRef = database.getReference("clients");
+        myRef.child(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-")).child("contratando").setValue(code).addOnSuccessListener(new OnSuccessListener<Void>() {
+            @Override
+            public void onSuccess(Void aVoid) {
+                myRef = database.getReference("workers");
+                myRef.child(wLocation.getWorkUser().getUsername().replace("@", "+").replace(".", "-")).child("contratado").setValue(code).addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                    }
+                });
+            }
+        });
     }
 
 
-    private boolean checkLock() {
-        return false;
-    }
 
     private void updatePosition(Location location) {
         myRef = database.getReference("clients");
@@ -526,8 +535,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
     }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        handler.removeCallbacks(runn);
+    }
+
     private void moveToProcess() {
         Intent intent = new Intent(this, OrderingProcess.class);
+        intent.putExtra("orderCode", currentUser.getContratando());
+        intent.putExtra("currentUser", currentUser);
         startActivity(intent);
     }
 }

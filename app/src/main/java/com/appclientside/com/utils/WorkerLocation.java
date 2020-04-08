@@ -1,20 +1,26 @@
 package com.appclientside.com.utils;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class WorkerLocation {
+public class WorkerLocation implements Serializable {
     private Posicion posicion;
     private Worker workUser;
     private float calificacion;
     private boolean visible;
-    private boolean contratado;
+    private String contratado;
 
     public WorkerLocation() {
         workUser = new Worker();
         posicion = new Posicion();
     }
 
-    public WorkerLocation(Posicion posicion, Worker workUser, float calificacion, boolean visible, boolean contratado) {
+    @Override
+    public int hashCode() {
+        return Objects.hash(posicion, workUser, calificacion, visible, contratado);
+    }
+
+    public WorkerLocation(Posicion posicion, Worker workUser, float calificacion, boolean visible, String contratado) {
         this.posicion = posicion;
         this.workUser = workUser;
         this.calificacion = calificacion;
@@ -29,14 +35,9 @@ public class WorkerLocation {
         WorkerLocation that = (WorkerLocation) o;
         return Float.compare(that.calificacion, calificacion) == 0 &&
                 visible == that.visible &&
-                contratado == that.contratado &&
                 posicion.equals(that.posicion) &&
-                workUser.equals(that.workUser);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(posicion, workUser, calificacion, visible, contratado);
+                workUser.equals(that.workUser) &&
+                contratado.equals(that.contratado);
     }
 
     public Posicion getPosicion() {
@@ -71,11 +72,11 @@ public class WorkerLocation {
         this.visible = visible;
     }
 
-    public boolean isContratado() {
+    public String getContratado() {
         return contratado;
     }
 
-    public void setContratado(boolean contratado) {
+    public void setContratado(String contratado) {
         this.contratado = contratado;
     }
 }
