@@ -7,16 +7,19 @@ public class Pedido implements Serializable {
     private WorkerLocation worker;
     private Usuario client;
     private String timestamp;
+    private Posicion destino;
 
     public Pedido() {
         worker = new WorkerLocation();
         client = new Usuario();
+        destino = new Posicion();
     }
 
-    public Pedido(WorkerLocation worker, Usuario client, String timestamp) {
+    public Pedido(WorkerLocation worker, Usuario client, String timestamp, Posicion destino) {
         this.worker = worker;
         this.client = client;
         this.timestamp = timestamp;
+        this.destino = destino;
     }
 
     public WorkerLocation getWorker() {
@@ -43,6 +46,14 @@ public class Pedido implements Serializable {
         this.timestamp = timestamp;
     }
 
+    public Posicion getDestino() {
+        return destino;
+    }
+
+    public void setDestino(Posicion destino) {
+        this.destino = destino;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -50,11 +61,13 @@ public class Pedido implements Serializable {
         Pedido pedido = (Pedido) o;
         return worker.equals(pedido.worker) &&
                 client.equals(pedido.client) &&
-                timestamp.equals(pedido.timestamp);
+                timestamp.equals(pedido.timestamp) &&
+                destino.equals(pedido.destino);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(worker, client, timestamp);
+        return Objects.hash(worker, client, timestamp, destino);
     }
 }
+

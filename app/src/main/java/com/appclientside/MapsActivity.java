@@ -77,7 +77,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LatLng currentLocation;
     private Location initialLocation;
     private List<MapWorkers> workersInMap;
-
+    private List<MapWorkers> filtrable;
     private FirebaseDatabase database;
     private DatabaseReference myRef;
     private FirebaseFirestore db;
@@ -89,6 +89,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Usuario currentUser = new Usuario();
     private Usuario resCurrentUser;
 
+    private MapWorkers contratedWorker = new MapWorkers();
+    private MapWorkers resContratedWorker;
+
+    private Marker destino;
+    private LatLng trabajador;
+    private LatLng resTrabajador;
+    private LatLng locDest;
     private String codeChat;
     private String resCodeChat;
 
@@ -100,6 +107,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Spinner filtro;
 
     private int currentWorkers;
+    private int visibleWorkers;
+    private int resVisibleWorkers;
 
     private FirebaseAuth mAuth;
 
@@ -157,7 +166,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-
+        final FloatingActionButton chat = findViewById(R.id.chatButton);
+        chat.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                moveToProcess();
+            }
+        });
         mAuth = FirebaseAuth.getInstance();
         getCurrentClient(mAuth.getCurrentUser().getEmail().replace("@", "+").replace(".", "-"));
         profesions = new ArrayList<>();
@@ -173,27 +188,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Log.i("Error2", abatibleWorkers.size() + "");
                 if (!abatibleWorkers.isEmpty()) {
                     if (inicial && mMap != null) {
-                        mMap.clear();
+                        for (MapWorkers wk : workersInMap) {
+                            wk.getMarker().remove();
+                        }
                         workersInMap = iniWorkersPosition();
                         inicial = false;
                     }
-                    if (currentWorkers != abatibleWorkers.size()) {
+                    if (currentWorkers != visibleWorkers) {
                         inicial = true;
                     }
-                    if (String.valueOf(filtro.getSelectedItem()).equals("Todas")) {
-                        for (MapWorkers mw : workersInMap) {
+
+                    if (chat.isShown()) {
+                        for (MapWorkers wk : workersInMap) {
+                            if (!wk.getWorker().getContratado().equals(currentUser.getContratando()))
+                                wk.getMarker().setVisible(false);
+                        }
+
+                    } else if (String.valueOf(filtro.getSelectedItem()).equals("Todas")) {
+                        for (MapWorkers mw : filtrable) {
                             mw.getMarker().setVisible(true);
                         }
                     } else {
-                        for (MapWorkers mwj : workersInMap) {
+                        for (MapWorkers mwj : filtrable) {
                             mwj.getMarker().setVisible(true);
                         }
-                        for (MapWorkers mw : workersInMap) {
+                        for (MapWorkers mw : filtrable) {
                             if (!mw.getWorker().getWorkUser().getEspecializacion().equals(String.valueOf(filtro.getSelectedItem())))
                                 mw.getMarker().setVisible(false);
                         }
                     }
-                    for (MapWorkers wk : workersInMap) {
+                    for (MapWorkers wk : filtrable) {
                         if (!wk.getMarker().getPosition().equals(new LatLng(wk.getWorker().getPosicion().getLatitude(),
                                 wk.getWorker().getPosicion().getLongitude()))) {
 
@@ -205,21 +229,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 } else
                     inicial = true;
 
-                if (currentUser.getContratando() != null && !currentUser.getContratando().isEmpty()) {
-                    moveToProcess();
+                if (currentUser.getContratando() != null && !currentUser.getContratando().isEmpty() && !chat.isShown()) {
+                    chat.setVisibility(View.VISIBLE);
+
+
+                } else if (currentUser.getContratando() != null && currentUser.getContratando().isEmpty() && chat.isShown() && destino != null) {
+                    chat.setVisibility(View.GONE);
+                    destino.remove();
                 }
                 handler.postDelayed(this, delay);
 
             }
         };
-
-
-        handler.postDelayed(runn, delay);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+        handler.postDelayed(runn, delay);
     }
 
 
@@ -269,6 +296,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
+    private void saverContratedWorker() {
+        contratedWorker = resContratedWorker;
+    }
+
+    private void saverTrabajador() {
+        trabajador = resTrabajador;
+    }
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
@@ -283,6 +317,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 for (MapWorkers wm : workersInMap) {
                     if (wm.getMarker().getId().equals(marker.getId())) {
+                        resContratedWorker = wm;
+                        saverContratedWorker();
                         if (!wm.getWorker().getContratado().isEmpty() && wm.getWorker().isVisible()) {
                             Toast.makeText(MapsActivity.this, "Usuario negociando con otro cliente...", Toast.LENGTH_LONG).show();
                             return false;
@@ -294,12 +330,59 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 builder.setTitle("Contratar");
                 builder.setMessage("Me escoges a mi?");
                 final Marker aux = marker;
+                resTrabajador = marker.getPosition();
+                saverTrabajador();
                 builder.setPositiveButton("Sí", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        for (MapWorkers wm : workersInMap) {
+                        for (final MapWorkers wm : workersInMap) {
                             Log.i("Barrido:", wm.getWorker().getWorkUser().getNombre() + ">" + wm.getMarker().getId() + "<>" + aux.getId());
                             if (wm.getMarker().getId().equals(aux.getId())) {
-                                registrarContratacion(wm.getWorker());
+                                destino = mMap.addMarker(new MarkerOptions()
+                                        .position(currentLocation)
+                                        .title("Destino")
+                                        .draggable(true)
+                                );
+
+                                mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
+                                    @Override
+                                    public void onMarkerDragStart(Marker marker) {
+
+                                    }
+
+                                    @Override
+                                    public void onMarkerDrag(Marker marker) {
+
+                                    }
+
+                                    @Override
+                                    public void onMarkerDragEnd(Marker marker) {
+                                        AlertDialog.Builder builder;
+                                        builder = new AlertDialog.Builder(MapsActivity.this);
+                                        builder.setTitle("Destino");
+                                        builder.setMessage("Aqui llegará " + contratedWorker.getWorker().getWorkUser().getNombre() + "?");
+
+                                        builder.setPositiveButton("Sí", new DialogInterface.OnClickListener() {
+                                            public void onClick(DialogInterface dialog, int which) {
+                                                registrarContratacion(wm.getWorker());
+                                                destino.setDraggable(false);
+                                                dialog.dismiss();
+                                            }
+
+                                        });
+
+                                        builder.setNegativeButton("NO", new DialogInterface.OnClickListener() {
+
+                                            @Override
+                                            public void onClick(DialogInterface dialog, int which) {
+
+                                                dialog.dismiss();
+                                            }
+                                        });
+
+                                        AlertDialog alert = builder.create();
+                                        alert.show();
+                                    }
+                                });
                                 break;
                             }
                         }
@@ -328,7 +411,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         String pattern = "EEEEE MMMMM yyyy HH:mm:ss.SSSZ";
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern, new Locale("es", "EC"));
         String date = simpleDateFormat.format(new Date());
-        Pedido pAux = new Pedido(w, currentUser, date);
+        locDest = destino.getPosition();
+        Pedido pAux = new Pedido(w, currentUser, date, new Posicion(destino.getPosition().latitude, destino.getPosition().longitude));
         db.collection("contratos")
                 .add(pAux)
                 .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
@@ -391,7 +475,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public List<MapWorkers> iniWorkersPosition(){
         List<MapWorkers> workersInMap = new ArrayList<>();
-        currentWorkers = abatibleWorkers.size();
+        filtrable = new ArrayList<>();
+        currentWorkers = visibleWorkers;
         for (WorkerLocation itr :abatibleWorkers) {
             workersInMap.add(
                     new MapWorkers(
@@ -400,9 +485,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                             .position(new LatLng(itr.getPosicion().getLatitude(), itr.getPosicion().getLongitude()))
                                             .title(itr.getWorkUser().getNombre() + " " + itr.getWorkUser().getApellido())
                                             .icon(bitmapDescriptorFromVector(this, R.drawable.ic_obrero))
+                                            .visible(itr.isVisible())
                             )
                     , itr));
-
+            filtrable.add(workersInMap.get(workersInMap.size() - 1));
         }
         return workersInMap;
     }
@@ -441,6 +527,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void  saver(){
         abatibleWorkers = resAbatibleWorkers;
+        visibleWorkers = resVisibleWorkers;
     }
 
 
@@ -470,14 +557,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private void getAbatibleWorkers() {
         myRef = database.getReference("workers");
         Query query = myRef;
+        resVisibleWorkers = 0;
         query.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()) {
                     resAbatibleWorkers.clear();
                     for (DataSnapshot worker : dataSnapshot.getChildren()) {
-                        if (Objects.requireNonNull(worker.getValue(WorkerLocation.class)).isVisible())
                             resAbatibleWorkers.add(worker.getValue(WorkerLocation.class));
+                        if (worker.getValue(WorkerLocation.class).isVisible()) resVisibleWorkers++;
                     }
                     saver();
                 }
